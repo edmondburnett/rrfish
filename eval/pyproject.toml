@@ -1,0 +1,26 @@
+[project]
+name = "eval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ name = "Edmond Burnett", email = "_@edmondburnett.com" }]
+dependencies = []
+
+[project.scripts]
+eval = "eval:main"
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.24.0",
+  "debugpy>=1.8.5,<2",
+  "ipython>=8.31.0",
+  "neovim>=0.3.1",
+  "pytest>=9",
+  "rope>=1.13.0,<2",
+  "ruff>=0.10",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"
