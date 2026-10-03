@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["rrfind", "rrfish-api", "rrfish-core", "rrfish-mcp", "rrfishd"]
+
+[workspace.package]
+edition = "2024"
+repository = "https://github.com/edmondburnett/rrfish"
+license = "MIT"
+
+[workspace.dependencies]
+color-eyre = "0.6.5"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-tls"] }
+rrfish-api = { path = "rrfish-api" }
+rrfish-core = { path = "rrfish-core" }
+serde = "1.0.228"
+serde_json = "1.0.151"
+thiserror = "2.0.21"
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
