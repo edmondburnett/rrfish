@@ -14,8 +14,40 @@ services:
     volumes:
       - opensearch-data:/usr/share/opensearch/data
     ports:
-      - "127.0.0.1:9200:9200"
+      - "9200:9200"
+    restart: unless-stopped
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:3.9.0
+    container_name: rrfish-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+
+  embed:
+    image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+    container_name: rrfish-embed
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "984"  # getent group video  | cut -d: -f3
+      - "988"  # getent group render | cut -d: -f3
+    volumes:
+      - ${HOME}/models:/models:ro
+    command: >
+      -m /models/Qwen3-Embedding-0.6B-Q8_0.gguf
+      --embedding --pooling last
+      -ngl 99 -c 4096 -b 2048 -ub 2048 -dev Vulkan0
+      --host 0.0.0.0 --port 8080
+    ports:
+      - "8081:8080"
     restart: unless-stopped
 
 volumes:
   opensearch-data:
+
+
