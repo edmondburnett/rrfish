@@ -7,15 +7,15 @@ name = "rrfind"
 version = "0.1.0"
 
 [[package]]
-name = "rrfish-api"
-version = "0.1.0"
-
-[[package]]
 name = "rrfish-core"
 version = "0.1.0"
 
 [[package]]
 name = "rrfish-mcp"
+version = "0.1.0"
+
+[[package]]
+name = "rrfish-types"
 version = "0.1.0"
 
 [[package]]
