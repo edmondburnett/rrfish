@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["rrfind", "rrfish-core", "rrfish-mcp", "rrfish-types", "rrfishd"]
+members = ["cli", "core", "daemon", "mcp", "types"]
 
 [workspace.package]
 edition = "2024"
@@ -10,8 +10,8 @@ license = "MIT"
 [workspace.dependencies]
 color-eyre = "0.6.5"
 reqwest = { version = "0.13.5", features = ["json"] }
-rrfish-core = { path = "rrfish-core" }
-rrfish-types = { path = "rrfish-types" }
+rrfish-core = { path = "core" }
+rrfish-types = { path = "types" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = "2.0.21"
