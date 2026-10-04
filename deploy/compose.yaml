@@ -47,7 +47,25 @@ services:
       - "8081:8080"
     restart: unless-stopped
 
+  rerank:
+    image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+    container_name: rrfish-rerank
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "984"
+      - "988"
+    volumes:
+      - ${HOME}/models:/models:ro
+    command: >
+      -m /models/qwen3-reranker-0.6b-q8_0.gguf
+      --reranking --pooling rank --embedding
+      -ngl 99 -c 8192 -b 2048 -ub 2048 -dev Vulkan0
+      --host 0.0.0.0 --port 8080
+    ports:
+      - "8082:8080"
+    restart: unless-stopped
+
 volumes:
   opensearch-data:
-
 
