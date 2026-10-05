@@ -7,3 +7,4 @@ license.workspace = true
 
 [dependencies]
 ignore = "0.4.33"
+pulldown-cmark = "0.13.4"

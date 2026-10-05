@@ -13,3 +13,9 @@ pub struct NoteFile {
     pub format: Format,
     pub collection: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Section {
+    pub heading_path: Vec<String>,
+    pub text: String,
+}
