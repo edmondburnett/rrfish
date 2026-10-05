@@ -21,9 +21,21 @@ pub fn discover(root: &Path) -> Vec<NoteFile> {
         .collect()
 }
 
-fn format_of(path: &Path) -> Option<Format> {}
+fn format_of(path: &Path) -> Option<Format> {
+    let extension = path.extension()?;
+    match extension.to_str() {
+        Some("md") => Some(Format::Md),
+        Some("org") => Some(Format::Org),
+        _ => None,
+    }
+}
 
-fn collection_of(rel_path: &Path) -> Option<String> {}
+fn collection_of(rel_path: &Path) -> Option<String> {
+    let mut components = rel_path.components();
+    let first = components.next()?;
+    components.next()?;
+    Some(first.as_os_str().to_str()?.to_string())
+}
 
 #[cfg(test)]
 mod tests {
