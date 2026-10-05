@@ -2,6 +2,7 @@ use crate::doc::{Format, NoteFile};
 use ignore::WalkBuilder;
 use std::path::Path;
 
+/// Walks the path returning a vector of filesnames
 pub fn discover(root: &Path) -> Vec<NoteFile> {
     WalkBuilder::new(root)
         .build()
@@ -21,6 +22,7 @@ pub fn discover(root: &Path) -> Vec<NoteFile> {
         .collect()
 }
 
+/// return valid file extensions or None
 fn format_of(path: &Path) -> Option<Format> {
     let extension = path.extension()?;
     match extension.to_str() {
@@ -30,6 +32,7 @@ fn format_of(path: &Path) -> Option<Format> {
     }
 }
 
+/// returns first-level directory name (a "collection"), or None
 fn collection_of(rel_path: &Path) -> Option<String> {
     let mut components = rel_path.components();
     let first = components.next()?;
