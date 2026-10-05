@@ -46,8 +46,8 @@ mod tests {
 
     #[test]
     fn format_from_extension() {
-        assert!(matches!(format_of(Path::new("a/b.md")), Some(Format::Md)));
-        assert!(matches!(format_of(Path::new("b.org")), Some(Format::Org)));
+        assert_eq!(format_of(Path::new("a/b.md")), Some(Format::Md));
+        assert_eq!(format_of(Path::new("b.org")), Some(Format::Org));
         assert!(format_of(Path::new("b.txt")).is_none());
         assert!(format_of(Path::new("Makefile")).is_none());
     }
