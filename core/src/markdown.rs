@@ -14,9 +14,19 @@ struct SectionBuilder {
 
 impl SectionBuilder {
     fn start_heading(&mut self, level: HeadingLevel) {}
+
     fn end_heading(&mut self) {}
-    fn push_text(&mut self, text: &str) {}
+
+    /// Text goes to the heading title if inside one, else to the section body.
+    fn push_text(&mut self, text: &str) {
+        if let Some((_level, title)) = &mut self.in_heading {
+            // inside a heading: append `text` to `title`
+        } else {
+            // not in a heading: append `text` to self.current_text
+        }
+
     fn close_section(&mut self) {}
+
     fn finish(self) -> Vec<Section> {}
 }
 
