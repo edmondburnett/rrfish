@@ -2,7 +2,19 @@ use crate::doc::Section;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
 /// Split a markdown document into sections, one per heading.
-pub fn parse_markdown(source: &str) -> Vec<Section> {}
+pub fn parse_markdown(source: &str) -> Vec<Section> {
+    let mut builder = SectionBuilder::default();
+    for event in Parser::new(source) {
+        match event {
+            Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level),
+            Event::End(TagEnd::Heading(_)) => builder.end_heading(),
+            Event::Text(text) | Event::Code(text) => builder.push_text(&text),
+            Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
+            _ => {}
+        }
+    }
+    builder.finish()
+}
 
 #[derive(Default)]
 struct SectionBuilder {
@@ -13,21 +25,49 @@ struct SectionBuilder {
 }
 
 impl SectionBuilder {
-    fn start_heading(&mut self, level: HeadingLevel) {}
+    fn start_heading(&mut self, level: HeadingLevel) {
+        self.close_section();
+        self.in_heading = Some((level, String::new()));
+    }
 
-    fn end_heading(&mut self) {}
+    fn end_heading(&mut self) {
+        let Some((level, title)) = self.in_heading.take() else {
+            return;
+        };
+        self.headings.retain(|(existing_level, _)| *existing_level < level);
+        self.headings.push((level, title.trim().to_string()));
+    }
 
     /// Text goes to the heading title if inside one, else to the section body.
     fn push_text(&mut self, text: &str) {
         if let Some((_level, title)) = &mut self.in_heading {
-            // inside a heading: append `text` to `title`
+            title.push_str(text);
         } else {
-            // not in a heading: append `text` to self.current_text
+            self.current_text.push_str(text);
+        }
+    }
+
+    fn close_section(&mut self) {
+        let current_text = std::mem::take(&mut self.current_text);
+        if current_text.trim().is_empty() {
+            return;
         }
 
-    fn close_section(&mut self) {}
+        let mut heading_path = Vec::new();
+        for (_, title) in &self.headings {
+            heading_path.push(title.clone());
+        }
 
-    fn finish(self) -> Vec<Section> {}
+        self.sections.push(Section {
+            heading_path,
+            text: current_text.trim().to_string(),
+        });
+    }
+
+    fn finish(mut self) -> Vec<Section> {
+        self.close_section();
+        self.sections
+    }
 }
 
 #[cfg(test)]
@@ -35,10 +75,7 @@ mod tests {
     use super::*;
 
     fn paths(md: &str) -> Vec<Vec<String>> {
-        parse_markdown(md)
-            .into_iter()
-            .map(|s| s.heading_path)
-            .collect()
+        parse_markdown(md).into_iter().map(|s| s.heading_path).collect()
     }
 
     #[test]
@@ -56,10 +93,7 @@ mod tests {
 
     #[test]
     fn sibling_heading_replaces_previous() {
-        assert_eq!(
-            paths("# A\n\n## B\n\nb\n\n## C\n\nc"),
-            [vec!["A", "B"], vec!["A", "C"]]
-        );
+        assert_eq!(paths("# A\n\n## B\n\nb\n\n## C\n\nc"), [vec!["A", "B"], vec!["A", "C"]]);
     }
 
     #[test]
