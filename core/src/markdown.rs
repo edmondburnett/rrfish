@@ -16,6 +16,13 @@ pub fn parse_markdown(source: &str) -> Vec<Section> {
     builder.finish()
 }
 
+/// 1-based line number of the given byte offset in `source`.
+fn line_at(source: &str, byte_offset: usize) -> u32 {
+    let start = &source[..byte_offset];
+    let newline_count = start.matches('\n').count();
+    newline_count as u32 + 1
+}
+
 #[derive(Default)]
 struct SectionBuilder {
     sections: Vec<Section>,
@@ -107,5 +114,13 @@ mod tests {
     #[test]
     fn text_before_first_heading_has_empty_path() {
         assert_eq!(paths("intro\n\n# A\n\na"), [vec![], vec!["A"]]);
+    }
+
+    #[test]
+    fn line_at_counts_newlines_before_offset() {
+        let src = "a\nbc\n\nd";
+        assert_eq!(line_at(src, 0), 1);
+        assert_eq!(line_at(src, 2), 2);
+        assert_eq!(line_at(src, 7), 4);
     }
 }
