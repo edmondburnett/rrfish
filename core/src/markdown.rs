@@ -18,8 +18,8 @@ pub fn parse_markdown(source: &str) -> Vec<Section> {
 
 /// 1-based line number of the given byte offset in `source`.
 fn line_at(source: &str, byte_offset: usize) -> u32 {
-    let start = &source[..byte_offset];
-    let newline_count = start.matches('\n').count();
+    let before = &source[..byte_offset];
+    let newline_count = before.matches('\n').count();
     newline_count as u32 + 1
 }
 
