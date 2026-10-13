@@ -17,5 +17,6 @@ pub struct NoteFile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
     pub heading_path: Vec<String>,
+    pub line: u32,
     pub text: String,
 }

@@ -3,10 +3,10 @@ use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> Vec<Section> {
-    let mut builder = SectionBuilder::default();
-    for event in Parser::new(source) {
+    let mut builder = SectionBuilder::new();
+    for (event, range) in Parser::new(source).into_offset_iter() {
         match event {
-            Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level),
+            Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
@@ -26,14 +26,23 @@ fn line_at(source: &str, byte_offset: usize) -> u32 {
 #[derive(Default)]
 struct SectionBuilder {
     sections: Vec<Section>,
+    section_line: u32,
     headings: Vec<(HeadingLevel, String)>,
     current_text: String,
     in_heading: Option<(HeadingLevel, String)>,
 }
 
 impl SectionBuilder {
-    fn start_heading(&mut self, level: HeadingLevel) {
+    fn new() -> Self {
+        Self {
+            section_line: 1,
+            ..Default::default()
+        }
+    }
+
+    fn start_heading(&mut self, level: HeadingLevel, line: u32) {
         self.close_section();
+        self.section_line = line;
         self.in_heading = Some((level, String::new()));
     }
 
@@ -67,6 +76,7 @@ impl SectionBuilder {
 
         self.sections.push(Section {
             heading_path,
+            line: self.section_line,
             text: current_text.trim().to_string(),
         });
     }
@@ -122,5 +132,14 @@ mod tests {
         assert_eq!(line_at(src, 0), 1);
         assert_eq!(line_at(src, 2), 2);
         assert_eq!(line_at(src, 7), 4);
+    }
+
+    #[test]
+    fn sections_record_their_heading_line() {
+        let lines: Vec<u32> = parse_markdown("intro\n\n# A\n\na\n\n## B\n\nb")
+            .into_iter()
+            .map(|s| s.line)
+            .collect();
+        assert_eq!(lines, [1, 3, 7]);
     }
 }
