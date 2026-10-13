@@ -3,13 +3,15 @@ use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
 
 /// Split a markdown document into sections, one per heading.
-pub fn parse_markdown(source: &str) -> Vec<Section> {
+pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     let mut builder = SectionBuilder::new();
     let parser = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
+            //      Event::Start(Tag::MetadataBlock(_)) => ...
+            //      Event::End(TagEnd::MetadataBlock(_)) => ...
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
             _ => {}
@@ -25,6 +27,14 @@ fn line_at(source: &str, byte_offset: usize) -> u32 {
     newline_count as u32 + 1
 }
 
+/// A parsed Markdown file.
+#[derive(Debug)]
+pub struct ParsedMarkdown {
+    /// Raw YAML between the leading `---` fences, if the file has front matter.
+    pub front_matter: Option<String>,
+    pub sections: Vec<Section>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct FrontMatter {
     pub title: Option<String>,
@@ -38,9 +48,11 @@ pub struct FrontMatter {
 struct SectionBuilder {
     sections: Vec<Section>,
     section_line: u32,
-    headings: Vec<(HeadingLevel, String)>,
     current_text: String,
+    headings: Vec<(HeadingLevel, String)>,
     in_heading: Option<(HeadingLevel, String)>,
+    front_matter: Option<String>,
+    in_front_matter: bool,
 }
 
 impl SectionBuilder {
@@ -49,6 +61,14 @@ impl SectionBuilder {
             section_line: 1,
             ..Default::default()
         }
+    }
+
+    fn start_front_matter(&mut self) {
+        self.front_matter = Some(String::new())
+    }
+
+    fn end_front_matter(&mut self) {
+        todo!()
     }
 
     fn start_heading(&mut self, level: HeadingLevel, line: u32) {
@@ -71,6 +91,7 @@ impl SectionBuilder {
             title.push_str(text);
         } else {
             self.current_text.push_str(text);
+            // if let Some(yaml) = &mut self.front_matter { ... }
         }
     }
 
@@ -152,5 +173,19 @@ mod tests {
             .map(|s| s.line)
             .collect();
         assert_eq!(lines, [1, 3, 7]);
+    }
+
+    #[test]
+    fn front_matter_is_captured_not_indexed() {
+        let parsed = parse_markdown("---\ntitle: AI notes\ntags: [ml]\n---\nbody\n");
+        assert_eq!(parsed.front_matter.as_deref(), Some("title: AI notes\ntags: [ml]\n"));
+        assert_eq!(parsed.sections.len(), 1);
+        assert!(parsed.sections[0].heading_path.is_empty());
+        assert_eq!(parsed.sections[0].text, "body");
+    }
+
+    #[test]
+    fn file_without_front_matter_has_none() {
+        assert_eq!(parse_markdown("# A\n\nbody").front_matter, None);
     }
 }
