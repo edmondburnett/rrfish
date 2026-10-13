@@ -20,6 +20,11 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     builder.finish()
 }
 
+/// Deserialze raw front-matter YAML.
+pub fn parse_front_matter(yaml: &str) -> Result<FrontMatter, serde_saphyr::Error> {
+    todo!()
+}
+
 /// 1-based line number of the given byte offset in `source`.
 fn line_at(source: &str, byte_offset: usize) -> u32 {
     let before = &source[..byte_offset];
@@ -201,5 +206,29 @@ mod tests {
     #[test]
     fn file_without_front_matter_has_none() {
         assert_eq!(parse_markdown("# A\n\nbody").front_matter, None);
+    }
+
+    #[test]
+    fn front_matter_reads_typical_fields() {
+        let yaml = "title: Linux Audio\ndate: Thu Sep 05 2024 11:07:30 AM PDT\ntags:\n    - computers\n    - linux\n";
+        let fm = parse_front_matter(yaml).unwrap();
+        assert_eq!(fm.title.as_deref(), Some("Linux Audio"));
+        assert_eq!(fm.date.as_deref(), Some("Thu Sep 05 2024 11:07:30 AM PDT"));
+        assert_eq!(fm.updated, None);
+        assert_eq!(fm.tags, ["computers", "linux"]);
+    }
+
+    #[test]
+    fn missing_fields_default_and_unknown_fields_are_ignored() {
+        let fm = parse_front_matter("title: Only\nauthor: me\n").unwrap();
+        assert_eq!(fm.title.as_deref(), Some("Only"));
+        assert_eq!(fm.date, None);
+        assert!(fm.tags.is_empty());
+    }
+
+    #[test]
+    fn invalid_front_matter_is_an_error() {
+        assert!(parse_front_matter("title: x\ntags: ml\n").is_err());
+        assert!(parse_front_matter("title: Rust: lifetimes\n").is_err());
     }
 }
