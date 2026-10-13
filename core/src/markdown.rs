@@ -1,10 +1,12 @@
 use crate::doc::Section;
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use serde::Deserialize;
 
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> Vec<Section> {
     let mut builder = SectionBuilder::new();
-    for (event, range) in Parser::new(source).into_offset_iter() {
+    let parser = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
+    for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
@@ -21,6 +23,15 @@ fn line_at(source: &str, byte_offset: usize) -> u32 {
     let before = &source[..byte_offset];
     let newline_count = before.matches('\n').count();
     newline_count as u32 + 1
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FrontMatter {
+    pub title: Option<String>,
+    pub date: Option<String>,
+    pub updated: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Default)]

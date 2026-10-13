@@ -8,3 +8,5 @@ license.workspace = true
 [dependencies]
 ignore = "0.4.33"
 pulldown-cmark = "0.13.4"
+serde = { workspace = true, features = ["derive"] }
+serde-saphyr = "2.0.0"
