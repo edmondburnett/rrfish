@@ -20,9 +20,9 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     builder.finish()
 }
 
-/// Deserialze raw front-matter YAML.
+/// Deserialize raw front-matter YAML.
 pub fn parse_front_matter(yaml: &str) -> Result<FrontMatter, serde_saphyr::Error> {
-    todo!()
+    serde_saphyr::from_str(yaml)
 }
 
 /// 1-based line number of the given byte offset in `source`.
