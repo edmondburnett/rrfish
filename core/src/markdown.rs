@@ -10,8 +10,8 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
         match event {
             Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
-            //      Event::Start(Tag::MetadataBlock(_)) => ...
-            //      Event::End(TagEnd::MetadataBlock(_)) => ...
+            Event::Start(Tag::MetadataBlock(_)) => builder.start_front_matter(),
+            Event::End(TagEnd::MetadataBlock(_)) => builder.end_front_matter(),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
             _ => {}
@@ -64,11 +64,12 @@ impl SectionBuilder {
     }
 
     fn start_front_matter(&mut self) {
-        self.front_matter = Some(String::new())
+        self.front_matter = Some(String::new());
+        self.in_front_matter = true;
     }
 
     fn end_front_matter(&mut self) {
-        todo!()
+        self.in_front_matter = false;
     }
 
     fn start_heading(&mut self, level: HeadingLevel, line: u32) {
@@ -87,11 +88,16 @@ impl SectionBuilder {
 
     /// Text goes to the heading title if inside one, else to the section body.
     fn push_text(&mut self, text: &str) {
+        if self.in_front_matter {
+            if let Some(yaml) = &mut self.front_matter {
+                yaml.push_str(text);
+            }
+            return;
+        }
         if let Some((_level, title)) = &mut self.in_heading {
             title.push_str(text);
         } else {
             self.current_text.push_str(text);
-            // if let Some(yaml) = &mut self.front_matter { ... }
         }
     }
 
@@ -113,9 +119,12 @@ impl SectionBuilder {
         });
     }
 
-    fn finish(mut self) -> Vec<Section> {
+    fn finish(mut self) -> ParsedMarkdown {
         self.close_section();
-        self.sections
+        ParsedMarkdown {
+            front_matter: self.front_matter,
+            sections: self.sections,
+        }
     }
 }
 
@@ -124,12 +133,16 @@ mod tests {
     use super::*;
 
     fn paths(md: &str) -> Vec<Vec<String>> {
-        parse_markdown(md).into_iter().map(|s| s.heading_path).collect()
+        parse_markdown(md)
+            .sections
+            .into_iter()
+            .map(|s| s.heading_path)
+            .collect()
     }
 
     #[test]
     fn heading_then_paragraph() {
-        let sections = parse_markdown("# Title\n\nHello *world*");
+        let sections = parse_markdown("# Title\n\nHello *world*").sections;
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].heading_path, ["Title"]);
         assert_eq!(sections[0].text, "Hello world");
@@ -169,6 +182,7 @@ mod tests {
     #[test]
     fn sections_record_their_heading_line() {
         let lines: Vec<u32> = parse_markdown("intro\n\n# A\n\na\n\n## B\n\nb")
+            .sections
             .into_iter()
             .map(|s| s.line)
             .collect();
