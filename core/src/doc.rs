@@ -19,6 +19,7 @@ pub struct Section {
     pub heading_path: Vec<String>,
     pub line: u32,
     pub text: String,
+    pub code_langs: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

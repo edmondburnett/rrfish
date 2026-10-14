@@ -252,4 +252,32 @@ mod tests {
         let parsed = parse_markdown("read [the docs](https://a.example) and [[pipewire|PW]]");
         assert_eq!(parsed.sections[0].text, "read the docs and PW");
     }
+
+    fn langs(md: &str) -> Vec<Vec<String>> {
+        parse_markdown(md).sections.into_iter().map(|s| s.code_langs).collect()
+    }
+
+    #[test]
+    fn fenced_code_records_language_and_keeps_code_text() {
+        let parsed = parse_markdown("# A\n\n```rust\nfn main() {}\n```\n");
+        assert_eq!(parsed.sections[0].code_langs, ["rust"]);
+        assert!(parsed.sections[0].text.contains("fn main() {}"));
+    }
+
+    #[test]
+    fn fence_info_extras_are_dropped_and_lowercased() {
+        assert_eq!(langs("```Rust,ignore\nx\n```"), [vec!["rust"]]);
+        assert_eq!(langs("```python title=x.py\nx\n```"), [vec!["python"]]);
+    }
+
+    #[test]
+    fn unlabeled_and_indented_code_have_no_language() {
+        assert_eq!(langs("```\nx\n```\n\n    indented\n"), [Vec::<String>::new()]);
+    }
+
+    #[test]
+    fn languages_are_deduped_and_stay_in_their_section() {
+        let md = "# A\n\n```rust\na\n```\n\n```rust\nb\n```\n\n# B\n\n```lua\nc\n```\n";
+        assert_eq!(langs(md), [vec!["rust"], vec!["lua"]]);
+    }
 }

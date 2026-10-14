@@ -9,6 +9,7 @@ pub struct SectionBuilder {
     headings: Vec<(u8, String)>,
     in_heading: Option<(u8, String)>,
     links: Vec<Link>,
+    code_langs: Vec<String>,
 }
 
 /// What a [`SectionBuilder`] produces, independent of the source format.
@@ -57,8 +58,17 @@ impl SectionBuilder {
         self.links.push(link);
     }
 
+    pub fn push_code_lang(&mut self, lang: &str) {
+        let lang = lang.trim().to_lowercase().to_string();
+        if lang.is_empty() || self.code_langs.contains(&lang) {
+            return;
+        }
+        self.code_langs.push(lang);
+    }
+
     fn close_section(&mut self) {
         let current_text = std::mem::take(&mut self.current_text);
+        let code_langs = std::mem::take(&mut self.code_langs);
         if current_text.trim().is_empty() {
             return;
         }
@@ -72,6 +82,7 @@ impl SectionBuilder {
             heading_path,
             line: self.section_line,
             text: current_text.trim().to_string(),
+            code_langs,
         });
     }
 
