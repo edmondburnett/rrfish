@@ -6,8 +6,8 @@ pub struct SectionBuilder {
     section_line: u32,
     current_text: String,
     first_h1: Option<String>,
-    headings: Vec<(HeadingLevel, String)>,
-    in_heading: Option<(HeadingLevel, String)>,
+    headings: Vec<(u8, String)>,
+    in_heading: Option<(u8, String)>,
     links: Vec<Link>,
 }
 
@@ -26,7 +26,7 @@ impl SectionBuilder {
         }
     }
 
-    pub fn start_heading(&mut self, level: HeadingLevel, line: u32) {
+    pub fn start_heading(&mut self, level: u8, line: u32) {
         self.close_section();
         self.section_line = line;
         self.in_heading = Some((level, String::new()));
@@ -53,11 +53,8 @@ impl SectionBuilder {
         }
     }
 
-    pub fn push_link(&mut self, link_type: LinkType, dest_url: CowStr) {
-        self.links.push(Link {
-            target: dest_url.to_string(),
-            kind,
-        });
+    pub fn push_link(&mut self, link: Link) {
+        self.links.push(link);
     }
 
     fn close_section(&mut self) {

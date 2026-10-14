@@ -1,4 +1,4 @@
-use crate::doc::{Link, Section};
+use crate::doc::{Link, LinkKind, Section};
 use crate::section::SectionBuilder;
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
@@ -7,6 +7,8 @@ use std::path::Path;
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     let mut builder = SectionBuilder::new();
+    let mut front_matter: Option<String> = None;
+    let mut in_front_matter = false;
     let parser = Parser::new_ext(
         source,
         Options::ENABLE_YAML_STYLE_METADATA_BLOCKS | Options::ENABLE_WIKILINKS,
@@ -17,8 +19,12 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
                 builder.start_heading(level as u8, line_at(source, range.start))
             }
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
-            Event::Start(Tag::MetadataBlock(_)) => builder.start_front_matter(),
-            Event::End(TagEnd::MetadataBlock(_)) => builder.end_front_matter(),
+            Event::Start(Tag::MetadataBlock(_)) => {
+                in_front_matter = true;
+                front_matter = Some(String::new());
+            }
+            Event::End(TagEnd::MetadataBlock(_)) => in_front_matter = false,
+            Event::Text(text) if in_front_matter => front_matter.get_or_insert_default().push_str(&text),
             Event::Start(Tag::Link {
                 link_type, dest_url, ..
             }) => builder.push_link(to_link(link_type, dest_url)),
@@ -27,7 +33,13 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
             _ => {}
         }
     }
-    builder.finish()
+    let built = builder.finish();
+    ParsedMarkdown {
+        front_matter,
+        first_h1: built.first_h1,
+        sections: built.sections,
+        links: built.links,
+    }
 }
 
 /// Deserialize raw front-matter YAML.
@@ -40,6 +52,18 @@ fn line_at(source: &str, byte_offset: usize) -> u32 {
     let before = &source[..byte_offset];
     let newline_count = before.matches('\n').count();
     newline_count as u32 + 1
+}
+
+/// Convert a pulldown-cmark link into our format-neutral `Link`.
+fn to_link(link_type: LinkType, dest_url: CowStr) -> Link {
+    let kind = match link_type {
+        LinkType::WikiLink { .. } => LinkKind::Wiki,
+        _ => LinkKind::Markdown,
+    };
+    Link {
+        target: dest_url.to_string(),
+        kind,
+    }
 }
 
 /// Pick a note's title
