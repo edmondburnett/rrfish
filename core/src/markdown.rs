@@ -1,5 +1,6 @@
-use crate::doc::{Link, LinkKind, Section};
-use pulldown_cmark::{CowStr, Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
+use crate::doc::{Link, Section};
+use crate::section::SectionBuilder;
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -12,13 +13,15 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     );
     for (event, range) in parser.into_offset_iter() {
         match event {
-            Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
+            Event::Start(Tag::Heading { level, .. }) => {
+                builder.start_heading(level as u8, line_at(source, range.start))
+            }
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
             Event::Start(Tag::MetadataBlock(_)) => builder.start_front_matter(),
             Event::End(TagEnd::MetadataBlock(_)) => builder.end_front_matter(),
             Event::Start(Tag::Link {
                 link_type, dest_url, ..
-            }) => builder.push_link(link_type, dest_url),
+            }) => builder.push_link(to_link(link_type, dest_url)),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
             _ => {}
@@ -70,109 +73,6 @@ pub struct FrontMatter {
     pub updated: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
-}
-
-#[derive(Default)]
-struct SectionBuilder {
-    sections: Vec<Section>,
-    section_line: u32,
-    current_text: String,
-    first_h1: Option<String>,
-    headings: Vec<(HeadingLevel, String)>,
-    in_heading: Option<(HeadingLevel, String)>,
-    front_matter: Option<String>,
-    in_front_matter: bool,
-    links: Vec<Link>,
-}
-
-impl SectionBuilder {
-    fn new() -> Self {
-        Self {
-            section_line: 1,
-            ..Default::default()
-        }
-    }
-
-    fn start_front_matter(&mut self) {
-        self.front_matter = Some(String::new());
-        self.in_front_matter = true;
-    }
-
-    fn end_front_matter(&mut self) {
-        self.in_front_matter = false;
-    }
-
-    fn start_heading(&mut self, level: HeadingLevel, line: u32) {
-        self.close_section();
-        self.section_line = line;
-        self.in_heading = Some((level, String::new()));
-    }
-
-    fn end_heading(&mut self) {
-        let Some((level, title)) = self.in_heading.take() else {
-            return;
-        };
-        let title = title.trim().to_string();
-        if level == HeadingLevel::H1 && self.first_h1.is_none() {
-            self.first_h1 = Some(title.clone());
-        }
-        self.headings.retain(|(existing_level, _)| *existing_level < level);
-        self.headings.push((level, title));
-    }
-
-    /// Text goes to the heading title if inside one, else to the section body.
-    fn push_text(&mut self, text: &str) {
-        if self.in_front_matter {
-            if let Some(yaml) = &mut self.front_matter {
-                yaml.push_str(text);
-            }
-            return;
-        }
-        if let Some((_level, title)) = &mut self.in_heading {
-            title.push_str(text);
-        } else {
-            self.current_text.push_str(text);
-        }
-    }
-
-    fn push_link(&mut self, link_type: LinkType, dest_url: CowStr) {
-        let kind = match link_type {
-            LinkType::WikiLink { .. } => LinkKind::Wiki,
-            _ => LinkKind::Markdown,
-        };
-        self.links.push(Link {
-            target: dest_url.to_string(),
-            kind,
-        });
-    }
-
-    fn close_section(&mut self) {
-        let current_text = std::mem::take(&mut self.current_text);
-        if current_text.trim().is_empty() {
-            return;
-        }
-
-        let mut heading_path = Vec::new();
-        for (_, title) in &self.headings {
-            heading_path.push(title.clone());
-        }
-
-        self.sections.push(Section {
-            heading_path,
-            line: self.section_line,
-            text: current_text.trim().to_string(),
-        });
-    }
-
-    fn finish(mut self) -> ParsedMarkdown {
-        self.close_section();
-        ParsedMarkdown {
-            front_matter: self.front_matter,
-            sections: self.sections,
-            first_h1: self.first_h1,
-            links: self.links,
-        }
-    }
 }
 
 #[cfg(test)]
