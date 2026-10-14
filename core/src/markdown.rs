@@ -60,7 +60,7 @@ pub struct ParsedMarkdown {
     pub front_matter: Option<String>,
     pub first_h1: Option<String>,
     pub sections: Vec<Section>,
-    links: Vec<Link>,
+    pub links: Vec<Link>,
 }
 
 #[derive(Debug, Deserialize)]

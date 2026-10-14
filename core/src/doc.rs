@@ -29,6 +29,8 @@ pub struct Link {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkKind {
+    /// `[[target]]` or `[[target|label]]`
     Wiki,
+    /// `[label](target)`, `<https://...>`, reference links
     Markdown,
 }
