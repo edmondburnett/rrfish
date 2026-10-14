@@ -59,7 +59,7 @@ impl SectionBuilder {
     }
 
     pub fn push_code_lang(&mut self, lang: &str) {
-        let lang = lang.trim().to_lowercase().to_string();
+        let lang = lang.trim().to_lowercase();
         if lang.is_empty() || self.code_langs.contains(&lang) {
             return;
         }

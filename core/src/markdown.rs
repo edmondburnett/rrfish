@@ -1,6 +1,6 @@
 use crate::doc::{Link, LinkKind, Section};
 use crate::section::SectionBuilder;
-use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -28,6 +28,7 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
             Event::Start(Tag::Link {
                 link_type, dest_url, ..
             }) => builder.push_link(to_link(link_type, dest_url)),
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => builder.push_code_lang(fence_lang(&info)),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
             _ => {}
@@ -64,6 +65,11 @@ fn to_link(link_type: LinkType, dest_url: CowStr) -> Link {
         target: dest_url.to_string(),
         kind,
     }
+}
+
+/// The language from a fence info string: "rust,ignore" or "rust title=x" → "rust".
+fn fence_lang(info: &str) -> &str {
+    info.split(|c: char| c.is_whitespace() || c == ',').next().unwrap_or("")
 }
 
 /// Pick a note's title
