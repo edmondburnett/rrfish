@@ -18,15 +18,14 @@ pub fn parse_org(source: &str) -> ParsedOrg {
     let mut title = None;
     let mut tags = Vec::new();
     for (index, line) in source.lines().enumerate() {
+        let line_number = index as u32 + 1;
         if let Some((key, value)) = keyword(line) {
             match key.as_str() {
                 "TITLE" => title = Some(value.to_string()),
                 "FILETAGS" => tags = filetags(value),
                 _ => {}
             }
-        }
-        let line_number = index as u32 + 1;
-        if let Some((level, heading)) = heading_level(line) {
+        } else if let Some((level, heading)) = heading_level(line) {
             builder.start_heading(level, line_number);
             builder.push_text(heading);
             builder.end_heading();
@@ -115,5 +114,35 @@ mod tests {
         let parsed = parse_org("* A\nline one\nline two\n");
         assert_eq!(parsed.sections[0].text, "line one\nline two");
         assert_eq!(parsed.first_h1.as_deref(), Some("A"));
+    }
+
+    #[test]
+    fn keywords_are_case_insensitive() {
+        assert_eq!(
+            keyword("#+TITLE: Linux Audio"),
+            Some(("TITLE".to_string(), "Linux Audio"))
+        );
+        assert_eq!(keyword("#+title: x"), Some(("TITLE".to_string(), "x")));
+    }
+
+    #[test]
+    fn non_keywords() {
+        assert_eq!(keyword("#+begin_src rust :results output"), None);
+        assert_eq!(keyword("# a comment"), None);
+        assert_eq!(keyword("plain: text"), None);
+    }
+
+    #[test]
+    fn filetags_split_on_colons() {
+        assert_eq!(filetags(":linux:audio:"), ["linux", "audio"]);
+        assert!(filetags("").is_empty());
+    }
+
+    #[test]
+    fn title_and_tags_are_read_and_keywords_stay_out_of_the_body() {
+        let parsed = parse_org("#+TITLE: Linux Audio\n#+FILETAGS: :linux:audio:\n#+AUTHOR: me\nintro\n* H\nx\n");
+        assert_eq!(parsed.title.as_deref(), Some("Linux Audio"));
+        assert_eq!(parsed.tags, ["linux", "audio"]);
+        assert_eq!(parsed.sections[0].text, "intro");
     }
 }
