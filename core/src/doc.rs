@@ -20,3 +20,15 @@ pub struct Section {
     pub line: u32,
     pub text: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link {
+    pub target: String,
+    pub kind: LinkKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkKind {
+    Wiki,
+    Markdown,
+}

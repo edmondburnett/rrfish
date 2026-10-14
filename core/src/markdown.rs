@@ -1,18 +1,24 @@
-use crate::doc::Section;
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use crate::doc::{Link, LinkKind, Section};
+use pulldown_cmark::{CowStr, Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
 use std::path::Path;
 
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     let mut builder = SectionBuilder::new();
-    let parser = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
+    let parser = Parser::new_ext(
+        source,
+        Options::ENABLE_YAML_STYLE_METADATA_BLOCKS | Options::ENABLE_WIKILINKS,
+    );
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { level, .. }) => builder.start_heading(level, line_at(source, range.start)),
             Event::End(TagEnd::Heading(_)) => builder.end_heading(),
             Event::Start(Tag::MetadataBlock(_)) => builder.start_front_matter(),
             Event::End(TagEnd::MetadataBlock(_)) => builder.end_front_matter(),
+            Event::Start(Tag::Link {
+                link_type, dest_url, ..
+            }) => builder.push_link(link_type, dest_url),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
             Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
             _ => {}
@@ -54,6 +60,7 @@ pub struct ParsedMarkdown {
     pub front_matter: Option<String>,
     pub first_h1: Option<String>,
     pub sections: Vec<Section>,
+    links: Vec<Link>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,6 +82,7 @@ struct SectionBuilder {
     in_heading: Option<(HeadingLevel, String)>,
     front_matter: Option<String>,
     in_front_matter: bool,
+    links: Vec<Link>,
 }
 
 impl SectionBuilder {
@@ -127,6 +135,17 @@ impl SectionBuilder {
         }
     }
 
+    fn push_link(&mut self, link_type: LinkType, dest_url: CowStr) {
+        let kind = match link_type {
+            LinkType::WikiLink { .. } => LinkKind::Wiki,
+            _ => LinkKind::Markdown,
+        };
+        self.links.push(Link {
+            target: dest_url.to_string(),
+            kind,
+        });
+    }
+
     fn close_section(&mut self) {
         let current_text = std::mem::take(&mut self.current_text);
         if current_text.trim().is_empty() {
@@ -151,6 +170,7 @@ impl SectionBuilder {
             front_matter: self.front_matter,
             sections: self.sections,
             first_h1: self.first_h1,
+            links: self.links,
         }
     }
 }
@@ -271,5 +291,41 @@ mod tests {
         assert_eq!(resolve_title(Some("FM"), Some("H1"), path), "FM");
         assert_eq!(resolve_title(None, Some("H1"), path), "H1");
         assert_eq!(resolve_title(None, None, path), "linux-audio");
+    }
+
+    fn targets(md: &str) -> Vec<(String, LinkKind)> {
+        parse_markdown(md)
+            .links
+            .into_iter()
+            .map(|l| (l.target, l.kind))
+            .collect()
+    }
+
+    #[test]
+    fn inline_and_autolinks_are_markdown_links() {
+        assert_eq!(
+            targets("see [docs](https://a.example) and <https://b.example>"),
+            [
+                ("https://a.example".to_string(), LinkKind::Markdown),
+                ("https://b.example".to_string(), LinkKind::Markdown),
+            ]
+        );
+    }
+
+    #[test]
+    fn wikilinks_keep_target_not_label() {
+        assert_eq!(
+            targets("[[Linux Audio]] and [[pipewire|the PW note]]"),
+            [
+                ("Linux Audio".to_string(), LinkKind::Wiki),
+                ("pipewire".to_string(), LinkKind::Wiki),
+            ]
+        );
+    }
+
+    #[test]
+    fn link_text_stays_in_section_body() {
+        let parsed = parse_markdown("read [the docs](https://a.example) and [[pipewire|PW]]");
+        assert_eq!(parsed.sections[0].text, "read the docs and PW");
     }
 }

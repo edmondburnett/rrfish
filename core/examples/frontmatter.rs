@@ -25,6 +25,7 @@ fn main() {
                 *missing_per_collection
                     .entry(file.collection.as_deref().unwrap_or("(root)"))
                     .or_default() += 1;
+                println!("Missing frontmatter: {}", file.rel_path.display());
             }
             Status::Invalid(reason) => {
                 invalid += 1;
