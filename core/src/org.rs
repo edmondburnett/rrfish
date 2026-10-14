@@ -4,6 +4,10 @@ use crate::section::SectionBuilder;
 /// A parsed org file.
 #[derive(Debug)]
 pub struct ParsedOrg {
+    /// From `#+TITLE:`
+    pub title: Option<String>,
+    /// From `#+FILETAGS:`
+    pub tags: Vec<String>,
     pub first_h1: Option<String>,
     pub sections: Vec<Section>,
 }
@@ -11,11 +15,20 @@ pub struct ParsedOrg {
 /// Split an org document into sections, one per headline.
 pub fn parse_org(source: &str) -> ParsedOrg {
     let mut builder = SectionBuilder::new();
+    let mut title = None;
+    let mut tags = Vec::new();
     for (index, line) in source.lines().enumerate() {
+        if let Some((key, value)) = keyword(line) {
+            match key.as_str() {
+                "TITLE" => title = Some(value.to_string()),
+                "FILETAGS" => tags = filetags(value),
+                _ => {}
+            }
+        }
         let line_number = index as u32 + 1;
-        if let Some((level, title)) = heading_level(line) {
+        if let Some((level, heading)) = heading_level(line) {
             builder.start_heading(level, line_number);
-            builder.push_text(title);
+            builder.push_text(heading);
             builder.end_heading();
         } else {
             builder.push_text(line);
@@ -24,9 +37,31 @@ pub fn parse_org(source: &str) -> ParsedOrg {
     }
     let built = builder.finish();
     ParsedOrg {
+        title,
+        tags,
         first_h1: built.first_h1,
         sections: built.sections,
     }
+}
+
+fn keyword(line: &str) -> Option<(String, &str)> {
+    let rest = line.trim_start().strip_prefix("#+")?;
+    let (key, value) = rest.split_once(':')?;
+    if key.is_empty() || key.contains(char::is_whitespace) {
+        return None;
+    }
+    Some((key.to_ascii_uppercase(), value.trim()))
+}
+
+fn filetags(value: &str) -> Vec<String> {
+    let mut tags = Vec::new();
+    for tag in value.split(':') {
+        let tag = tag.trim();
+        if !tag.trim().is_empty() {
+            tags.push(tag.to_string());
+        }
+    }
+    tags
 }
 
 /// `"** Title"` → `Some((2, "Title"))`; anything that isn't a headline → `None`.

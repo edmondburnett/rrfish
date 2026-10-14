@@ -4,6 +4,24 @@ use pulldown_cmark::{CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Ta
 use serde::Deserialize;
 use std::path::Path;
 
+/// A parsed Markdown file.
+#[derive(Debug)]
+pub struct ParsedMarkdown {
+    pub front_matter: Option<String>,
+    pub first_h1: Option<String>,
+    pub sections: Vec<Section>,
+    pub links: Vec<Link>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FrontMatter {
+    pub title: Option<String>,
+    pub date: Option<String>,
+    pub updated: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> ParsedMarkdown {
     let mut builder = SectionBuilder::new();
@@ -85,24 +103,6 @@ pub fn resolve_title(front_matter_title: Option<&str>, first_h1: Option<&str>, p
 
 fn file_stem(path: &Path) -> String {
     path.file_stem().unwrap_or_default().to_string_lossy().into_owned()
-}
-
-/// A parsed Markdown file.
-#[derive(Debug)]
-pub struct ParsedMarkdown {
-    pub front_matter: Option<String>,
-    pub first_h1: Option<String>,
-    pub sections: Vec<Section>,
-    pub links: Vec<Link>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FrontMatter {
-    pub title: Option<String>,
-    pub date: Option<String>,
-    pub updated: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
 }
 
 #[cfg(test)]
