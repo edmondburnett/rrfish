@@ -1,6 +1,7 @@
 use crate::doc::Section;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
+use std::path::Path;
 
 /// Split a markdown document into sections, one per heading.
 pub fn parse_markdown(source: &str) -> ParsedMarkdown {
@@ -32,11 +33,26 @@ fn line_at(source: &str, byte_offset: usize) -> u32 {
     newline_count as u32 + 1
 }
 
+/// Pick a note's title
+pub fn resolve_title(front_matter_title: Option<&str>, first_h1: Option<&str>, path: &Path) -> String {
+    if let Some(front_matter_title) = front_matter_title {
+        return front_matter_title.to_string();
+    }
+    if let Some(first_h1) = first_h1 {
+        return first_h1.to_string();
+    }
+    file_stem(path)
+}
+
+fn file_stem(path: &Path) -> String {
+    path.file_stem().unwrap_or_default().to_string_lossy().into_owned()
+}
+
 /// A parsed Markdown file.
 #[derive(Debug)]
 pub struct ParsedMarkdown {
-    /// Raw YAML between the leading `---` fences, if the file has front matter.
     pub front_matter: Option<String>,
+    pub first_h1: Option<String>,
     pub sections: Vec<Section>,
 }
 
@@ -54,6 +70,7 @@ struct SectionBuilder {
     sections: Vec<Section>,
     section_line: u32,
     current_text: String,
+    first_h1: Option<String>,
     headings: Vec<(HeadingLevel, String)>,
     in_heading: Option<(HeadingLevel, String)>,
     front_matter: Option<String>,
@@ -87,8 +104,12 @@ impl SectionBuilder {
         let Some((level, title)) = self.in_heading.take() else {
             return;
         };
+        let title = title.trim().to_string();
+        if level == HeadingLevel::H1 && self.first_h1.is_none() {
+            self.first_h1 = Some(title.clone());
+        }
         self.headings.retain(|(existing_level, _)| *existing_level < level);
-        self.headings.push((level, title.trim().to_string()));
+        self.headings.push((level, title));
     }
 
     /// Text goes to the heading title if inside one, else to the section body.
@@ -129,6 +150,7 @@ impl SectionBuilder {
         ParsedMarkdown {
             front_matter: self.front_matter,
             sections: self.sections,
+            first_h1: self.first_h1,
         }
     }
 }
@@ -230,5 +252,24 @@ mod tests {
     fn invalid_front_matter_is_an_error() {
         assert!(parse_front_matter("title: x\ntags: ml\n").is_err());
         assert!(parse_front_matter("title: Rust: lifetimes\n").is_err());
+    }
+
+    #[test]
+    fn first_h1_is_recorded() {
+        let parsed = parse_markdown("intro\n\n## Not this\n\n# Title\n\n# Later");
+        assert_eq!(parsed.first_h1.as_deref(), Some("Title"));
+    }
+
+    #[test]
+    fn no_h1_means_none() {
+        assert_eq!(parse_markdown("## Only h2\n\nbody").first_h1, None);
+    }
+
+    #[test]
+    fn title_prefers_front_matter_then_h1_then_filename() {
+        let path = Path::new("notes/linux-audio.md");
+        assert_eq!(resolve_title(Some("FM"), Some("H1"), path), "FM");
+        assert_eq!(resolve_title(None, Some("H1"), path), "H1");
+        assert_eq!(resolve_title(None, None, path), "linux-audio");
     }
 }
