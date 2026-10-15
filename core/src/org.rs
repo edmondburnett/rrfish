@@ -34,8 +34,8 @@ pub fn parse_org(source: &str) -> ParsedOrg {
             }
         } else if let Some((key, value)) = keyword(line) {
             match key.as_str() {
-                "title" => title = Some(value.to_string()),
-                "filetags" => tags = filetags(value),
+                "TITLE" => title = Some(value.to_string()),
+                "FILETAGS" => tags = filetags(value),
                 _ => {}
             }
         } else if let Some((level, heading)) = heading_level(line) {
@@ -76,7 +76,7 @@ fn filetags(value: &str) -> Vec<String> {
     tags
 }
 
-/// `"** title"` → `some((2, "title"))`; anything that isn't a headline → `none`.
+/// `"** Title"` → `Some((2, "Title"))`; anything that isn't a headline → `None`.
 fn heading_level(line: &str) -> Option<(u8, &str)> {
     let rest = line.trim_start_matches('*');
     let stars = line.len() - rest.len();
@@ -91,7 +91,7 @@ fn heading_level(line: &str) -> Option<(u8, &str)> {
 fn block_begin(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     let prefix = trimmed.get(..8)?;
-    if !prefix.eq_ignore_ascii_case("#begin_") {
+    if !prefix.eq_ignore_ascii_case("#+begin_") {
         return None;
     }
     Some(&trimmed[8..])
@@ -101,11 +101,11 @@ fn block_begin(line: &str) -> Option<&str> {
 fn is_block_end(line: &str) -> bool {
     match line.trim_start().get(..6) {
         Some(prefix) => prefix.eq_ignore_ascii_case("#+end_"),
-        none => false,
+        None => false,
     }
 }
 
-/// `"src rust :results output"` → `some("rust")`; `"quote"` or `"src :results x"` → `none`.
+/// `"SRC rust :results output"` → `Some("rust")`; `"QUOTE"` or `"SRC :results x"` → `None`.
 fn src_lang(block_args: &str) -> Option<&str> {
     let mut words = block_args.split_whitespace();
     let kind = words.next()?;
