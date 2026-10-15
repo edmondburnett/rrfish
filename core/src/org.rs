@@ -12,17 +12,30 @@ pub struct ParsedOrg {
     pub sections: Vec<Section>,
 }
 
-/// Split an org document into sections, one per headline.
+/// split an org document into sections, one per headline.
 pub fn parse_org(source: &str) -> ParsedOrg {
     let mut builder = SectionBuilder::new();
     let mut title = None;
     let mut tags = Vec::new();
+    let mut in_block = false;
     for (index, line) in source.lines().enumerate() {
         let line_number = index as u32 + 1;
-        if let Some((key, value)) = keyword(line) {
+        if in_block {
+            if is_block_end(line) {
+                in_block = false;
+            } else {
+                builder.push_text(line);
+                builder.push_text("\n");
+            }
+        } else if let Some(args) = block_begin(line) {
+            in_block = true;
+            if let Some(lang) = src_lang(args) {
+                builder.push_code_lang(lang);
+            }
+        } else if let Some((key, value)) = keyword(line) {
             match key.as_str() {
-                "TITLE" => title = Some(value.to_string()),
-                "FILETAGS" => tags = filetags(value),
+                "title" => title = Some(value.to_string()),
+                "filetags" => tags = filetags(value),
                 _ => {}
             }
         } else if let Some((level, heading)) = heading_level(line) {
@@ -63,7 +76,7 @@ fn filetags(value: &str) -> Vec<String> {
     tags
 }
 
-/// `"** Title"` → `Some((2, "Title"))`; anything that isn't a headline → `None`.
+/// `"** title"` → `some((2, "title"))`; anything that isn't a headline → `none`.
 fn heading_level(line: &str) -> Option<(u8, &str)> {
     let rest = line.trim_start_matches('*');
     let stars = line.len() - rest.len();
@@ -72,6 +85,34 @@ fn heading_level(line: &str) -> Option<(u8, &str)> {
     }
     let title = rest.strip_prefix(' ')?;
     Some((stars as u8, title.trim()))
+}
+
+/// `"#+begin_src rust :results output"` → `some("src rust :results output")`. case-insensitive.
+fn block_begin(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let prefix = trimmed.get(..8)?;
+    if !prefix.eq_ignore_ascii_case("#begin_") {
+        return None;
+    }
+    Some(&trimmed[8..])
+}
+
+/// `"#+end_src"` / `"#+end_quote"` → true.
+fn is_block_end(line: &str) -> bool {
+    match line.trim_start().get(..6) {
+        Some(prefix) => prefix.eq_ignore_ascii_case("#+end_"),
+        none => false,
+    }
+}
+
+/// `"src rust :results output"` → `some("rust")`; `"quote"` or `"src :results x"` → `none`.
+fn src_lang(block_args: &str) -> Option<&str> {
+    let mut words = block_args.split_whitespace();
+    let kind = words.next()?;
+    if !kind.eq_ignore_ascii_case("src") {
+        return None;
+    }
+    words.next().filter(|lang| !lang.starts_with(':'))
 }
 
 #[cfg(test)]
@@ -144,5 +185,38 @@ mod tests {
         assert_eq!(parsed.title.as_deref(), Some("Linux Audio"));
         assert_eq!(parsed.tags, ["linux", "audio"]);
         assert_eq!(parsed.sections[0].text, "intro");
+    }
+
+    #[test]
+    fn block_begin_returns_args() {
+        assert_eq!(block_begin("#+BEGIN_SRC rust"), Some("SRC rust"));
+        assert_eq!(block_begin("#+begin_quote"), Some("quote"));
+        assert_eq!(block_begin("#+TITLE: x"), None);
+        assert_eq!(block_begin(""), None);
+    }
+
+    #[test]
+    fn block_end_is_case_insensitive() {
+        assert!(is_block_end("#+END_SRC"));
+        assert!(is_block_end("#+end_quote"));
+        assert!(!is_block_end("text"));
+    }
+
+    #[test]
+    fn src_lang_takes_the_word_after_src() {
+        assert_eq!(src_lang("SRC rust :results output"), Some("rust"));
+        assert_eq!(src_lang("src :results output"), None);
+        assert_eq!(src_lang("SRC"), None);
+        assert_eq!(src_lang("QUOTE"), None);
+    }
+
+    #[test]
+    fn src_blocks_keep_code_and_record_language() {
+        let org = "* A\n#+begin_src Rust\n* not a heading\nfn main() {}\n#+end_src\nafter\n";
+        let parsed = parse_org(org);
+        assert_eq!(parsed.sections.len(), 1);
+        assert_eq!(parsed.sections[0].heading_path, ["A"]);
+        assert_eq!(parsed.sections[0].text, "* not a heading\nfn main() {}\nafter");
+        assert_eq!(parsed.sections[0].code_langs, ["rust"]);
     }
 }
