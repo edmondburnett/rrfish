@@ -7,3 +7,4 @@ Working title. Possible names:
 - tidelamp
 - lumenstream
 - lumentide
+- glowkast
