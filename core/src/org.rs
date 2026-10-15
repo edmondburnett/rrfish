@@ -12,7 +12,16 @@ pub struct ParsedOrg {
     pub sections: Vec<Section>,
 }
 
-/// split an org document into sections, one per headline.
+/// What a single line of org source is.
+enum Line<'a> {
+    BlockBegin { lang: Option<&'a str> },
+    BlockEnd,
+    Keyword { key: String, value: &'a str },
+    Heading { level: u8, title: &'a str },
+    Text(&'a str),
+}
+
+/// Split an org document into sections, one per headline.
 pub fn parse_org(source: &str) -> ParsedOrg {
     let mut builder = SectionBuilder::new();
     let mut title = None;
@@ -20,31 +29,28 @@ pub fn parse_org(source: &str) -> ParsedOrg {
     let mut in_block = false;
     for (index, line) in source.lines().enumerate() {
         let line_number = index as u32 + 1;
-        if in_block {
-            if is_block_end(line) {
-                in_block = false;
-            } else {
-                builder.push_text(line);
-                builder.push_text("\n");
+        match classify(line, in_block) {
+            Line::BlockBegin { lang } => {
+                in_block = true;
+                if let Some(lang) = lang {
+                    builder.push_code_lang(lang);
+                }
             }
-        } else if let Some(args) = block_begin(line) {
-            in_block = true;
-            if let Some(lang) = src_lang(args) {
-                builder.push_code_lang(lang);
-            }
-        } else if let Some((key, value)) = keyword(line) {
-            match key.as_str() {
+            Line::BlockEnd => in_block = false,
+            Line::Keyword { key, value } => match key.as_str() {
                 "TITLE" => title = Some(value.to_string()),
                 "FILETAGS" => tags = filetags(value),
                 _ => {}
+            },
+            Line::Heading { level, title: heading } => {
+                builder.start_heading(level, line_number);
+                builder.push_text(heading);
+                builder.end_heading();
             }
-        } else if let Some((level, heading)) = heading_level(line) {
-            builder.start_heading(level, line_number);
-            builder.push_text(heading);
-            builder.end_heading();
-        } else {
-            builder.push_text(line);
-            builder.push_text("\n");
+            Line::Text(text) => {
+                builder.push_text(text);
+                builder.push_text("\n");
+            }
         }
     }
     let built = builder.finish();
@@ -54,6 +60,26 @@ pub fn parse_org(source: &str) -> ParsedOrg {
         first_h1: built.first_h1,
         sections: built.sections,
     }
+}
+
+/// Decide what a line is. Inside a block, everything but the end fence is text.
+fn classify(line: &str, in_block: bool) -> Line<'_> {
+    if in_block {
+        if is_block_end(line) {
+            return Line::BlockEnd;
+        }
+        return Line::Text(line);
+    }
+    if let Some(args) = block_begin(line) {
+        return Line::BlockBegin { lang: src_lang(args) };
+    }
+    if let Some((key, value)) = keyword(line) {
+        return Line::Keyword { key, value };
+    }
+    if let Some((level, title)) = heading_level(line) {
+        return Line::Heading { level, title };
+    }
+    Line::Text(line)
 }
 
 fn keyword(line: &str) -> Option<(String, &str)> {
@@ -87,7 +113,7 @@ fn heading_level(line: &str) -> Option<(u8, &str)> {
     Some((stars as u8, title.trim()))
 }
 
-/// `"#+begin_src rust :results output"` → `some("src rust :results output")`. case-insensitive.
+/// `"#+begin_src rust :results output"` → `Some("src rust :results output")`. Case-insensitive.
 fn block_begin(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     let prefix = trimmed.get(..8)?;
