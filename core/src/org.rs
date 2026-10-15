@@ -1,4 +1,4 @@
-use crate::doc::Section;
+use crate::doc::{Link, LinkKind, Section};
 use crate::section::SectionBuilder;
 
 /// A parsed org file.
@@ -10,6 +10,7 @@ pub struct ParsedOrg {
     pub tags: Vec<String>,
     pub first_h1: Option<String>,
     pub sections: Vec<Section>,
+    pub links: Vec<Link>,
 }
 
 /// What a single line of org source is.
@@ -19,6 +20,7 @@ enum Line<'a> {
     Keyword { key: String, value: &'a str },
     Heading { level: u8, title: &'a str },
     Text(&'a str),
+    Code(&'a str),
 }
 
 /// Split an org document into sections, one per headline.
@@ -48,7 +50,15 @@ pub fn parse_org(source: &str) -> ParsedOrg {
                 builder.end_heading();
             }
             Line::Text(text) => {
-                builder.push_text(text);
+                let (text, links) = extract_links(text);
+                builder.push_text(&text);
+                builder.push_text("\n");
+                for link in links {
+                    builder.push_link(link);
+                }
+            }
+            Line::Code(code) => {
+                builder.push_text(code);
                 builder.push_text("\n");
             }
         }
@@ -59,6 +69,7 @@ pub fn parse_org(source: &str) -> ParsedOrg {
         tags,
         first_h1: built.first_h1,
         sections: built.sections,
+        links: built.links,
     }
 }
 
@@ -68,7 +79,7 @@ fn classify(line: &str, in_block: bool) -> Line<'_> {
         if is_block_end(line) {
             return Line::BlockEnd;
         }
-        return Line::Text(line);
+        return Line::Code(line);
     }
     if let Some(args) = block_begin(line) {
         return Line::BlockBegin { lang: src_lang(args) };
@@ -139,6 +150,35 @@ fn src_lang(block_args: &str) -> Option<&str> {
         return None;
     }
     words.next().filter(|lang| !lang.starts_with(':'))
+}
+
+/// Replace each `[[target][label]]` / `[[target]]` with its visible text, collecting the targets.
+fn extract_links(line: &str) -> (String, Vec<Link>) {
+    let mut text = String::new();
+    let mut links = Vec::new();
+    let mut rest = line;
+    while let Some(start) = rest.find("[[") {
+        let Some(length) = rest[start..].find("]]") else { break };
+        let end = start + length;
+        let (url, label) = split_link(&rest[start + 2..end]);
+        text.push_str(&rest[..start]);
+        text.push_str(label);
+        links.push(Link {
+            target: url.to_string(),
+            kind: LinkKind::Org,
+        });
+        rest = &rest[end + 2..];
+    }
+    text += rest;
+    (text, links)
+}
+
+/// `"url][label"` → `("url", "label")`; `"target"` → `("target", "target")`.
+fn split_link(inner: &str) -> (&str, &str) {
+    match inner.split_once("][") {
+        Some((target, label)) => (target, label),
+        None => (inner, inner),
+    }
 }
 
 #[cfg(test)]
@@ -244,5 +284,48 @@ mod tests {
         assert_eq!(parsed.sections[0].heading_path, ["A"]);
         assert_eq!(parsed.sections[0].text, "* not a heading\nfn main() {}\nafter");
         assert_eq!(parsed.sections[0].code_langs, ["rust"]);
+    }
+
+    fn link(target: &str) -> Link {
+        Link {
+            target: target.to_string(),
+            kind: LinkKind::Org,
+        }
+    }
+
+    #[test]
+    fn labelled_link_becomes_its_label() {
+        let (text, links) = extract_links("read [[https://a.example][the docs]] now");
+        assert_eq!(text, "read the docs now");
+        assert_eq!(links, [link("https://a.example")]);
+    }
+
+    #[test]
+    fn bare_link_becomes_its_target() {
+        let (text, links) = extract_links("see [[pipewire]]");
+        assert_eq!(text, "see pipewire");
+        assert_eq!(links, [link("pipewire")]);
+    }
+
+    #[test]
+    fn several_links_on_one_line() {
+        let (text, links) = extract_links("[[a][A]] and [[b]]");
+        assert_eq!(text, "A and b");
+        assert_eq!(links, [link("a"), link("b")]);
+    }
+
+    #[test]
+    fn unclosed_link_is_left_alone() {
+        let (text, links) = extract_links("oops [[never closed");
+        assert_eq!(text, "oops [[never closed");
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn links_are_collected_but_not_inside_code_blocks() {
+        let org = "* A\nsee [[x][X]]\n#+begin_src python\na[[0]]\n#+end_src\n";
+        let parsed = parse_org(org);
+        assert_eq!(parsed.links, [link("x")]);
+        assert_eq!(parsed.sections[0].text, "see X\na[[0]]");
     }
 }

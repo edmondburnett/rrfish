@@ -34,4 +34,6 @@ pub enum LinkKind {
     Wiki,
     /// `[label](target)`, `<https://...>`, reference links
     Markdown,
+    /// `[[target][label]]` or `[[target]]`
+    Org,
 }
