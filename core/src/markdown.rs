@@ -48,7 +48,8 @@ pub fn parse_markdown(source: &str) -> ParsedMarkdown {
             }) => builder.push_link(to_link(link_type, dest_url)),
             Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => builder.push_code_lang(fence_lang(&info)),
             Event::Text(text) | Event::Code(text) => builder.push_text(&text),
-            Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph) => builder.push_text("\n"),
+            Event::SoftBreak | Event::HardBreak | Event::Start(Tag::Item) => builder.end_line(),
+            Event::End(TagEnd::Paragraph | TagEnd::CodeBlock | TagEnd::List(_)) => builder.end_block(),
             _ => {}
         }
     }
@@ -285,5 +286,22 @@ mod tests {
     fn languages_are_deduped_and_stay_in_their_section() {
         let md = "# A\n\n```rust\na\n```\n\n```rust\nb\n```\n\n# B\n\n```lua\nc\n```\n";
         assert_eq!(langs(md), [vec!["rust"], vec!["lua"]]);
+    }
+
+    fn body(md: &str) -> String {
+        parse_markdown(md).sections[0].text.clone()
+    }
+
+    #[test]
+    fn list_items_are_separate_lines() {
+        assert_eq!(body("- game one\n- game two\n"), "game one\ngame two");
+        assert_eq!(body("1. one\n2. two\n"), "one\ntwo");
+    }
+
+    #[test]
+    fn blocks_are_separated_by_one_blank_line() {
+        assert_eq!(body("first\nsame para\n\nsecond\n"), "first\nsame para\n\nsecond");
+        assert_eq!(body("- a\n- b\n\nafter list\n"), "a\nb\n\nafter list");
+        assert_eq!(body("```sh\nls\n```\nafter code\n"), "ls\n\nafter code");
     }
 }

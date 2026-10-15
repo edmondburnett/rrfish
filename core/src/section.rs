@@ -86,6 +86,21 @@ impl SectionBuilder {
         });
     }
 
+    /// Finish the current line, unless it's already finished.
+    pub fn end_line(&mut self) {
+        if !self.current_text.is_empty() && !self.current_text.ends_with('\n') {
+            self.current_text.push('\n');
+        }
+    }
+
+    /// Leave a blank line before whatever comes next: the boundary between blocks.
+    pub fn end_block(&mut self) {
+        self.end_line();
+        if !self.current_text.is_empty() && !self.current_text.ends_with("\n\n") {
+            self.current_text.push('\n');
+        }
+    }
+
     pub fn finish(mut self) -> Built {
         self.close_section();
         Built {
