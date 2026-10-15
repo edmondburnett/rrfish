@@ -1,3 +1,4 @@
+pub mod chunk;
 pub mod doc;
 pub mod markdown;
 pub mod org;
