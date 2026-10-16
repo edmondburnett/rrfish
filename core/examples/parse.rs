@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use rrfish_core::chunk::{MAX_CHUNK_BYTES, chunk_section};
 use rrfish_core::doc::{Format, Link, NoteFile, Section};
 use rrfish_core::markdown::parse_markdown;
 use rrfish_core::org::parse_org;
@@ -18,6 +19,7 @@ fn main() {
 
     let mut empty_files = Vec::new();
     let mut sizes: Vec<(usize, String)> = Vec::new();
+    let mut chunk_sizes: Vec<(usize, String)> = Vec::new();
     let mut langs: BTreeMap<String, usize> = BTreeMap::new();
     let mut link_kinds: BTreeMap<String, usize> = BTreeMap::new();
 
@@ -28,7 +30,10 @@ fn main() {
         }
         for section in &parsed.sections {
             let location = format!("{}:{}", file.rel_path.display(), section.line);
-            sizes.push((section.text.chars().count(), location));
+            sizes.push((section.text.chars().count(), location.clone()));
+            for chunk in chunk_section(section, MAX_CHUNK_BYTES) {
+                chunk_sizes.push((chunk.text.len(), format!("{}:{}", file.rel_path.display(), chunk.line)));
+            }
             for lang in &section.code_langs {
                 *langs.entry(lang.clone()).or_default() += 1;
             }
@@ -40,7 +45,9 @@ fn main() {
 
     println!("{} files, {} sections", files.len(), sizes.len());
     print_list("files with no sections", &empty_files);
-    print_sizes(&mut sizes);
+    print_sizes("section", &mut sizes);
+    println!("\n{} chunks", chunk_sizes.len());
+    print_sizes("chunk", &mut chunk_sizes);
     print_counts("code languages", &langs);
     print_counts("links", &link_kinds);
 }
@@ -67,7 +74,7 @@ fn parse(file: &NoteFile) -> Parsed {
 }
 
 /// Median, p90 and max section size, then the 10 largest sections.
-fn print_sizes(sizes: &mut [(usize, String)]) {
+fn print_sizes(label: &str, sizes: &mut [(usize, String)]) {
     if sizes.is_empty() {
         return;
     }
@@ -75,8 +82,8 @@ fn print_sizes(sizes: &mut [(usize, String)]) {
     let median = sizes[sizes.len() / 2].0;
     let p90 = sizes[sizes.len() * 9 / 10].0;
     let max = sizes[sizes.len() - 1].0;
-    println!("\nsection size (chars): median {median}, p90 {p90}, max {max}");
-    println!("largest sections:");
+    println!("\n{label} size: median {median}, p90 {p90}, max {max}");
+    println!("largest {label}s:");
     for (size, location) in sizes.iter().rev().take(10) {
         println!("  {size:>7}  {location}");
     }
