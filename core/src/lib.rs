@@ -1,5 +1,6 @@
 pub mod chunk;
 pub mod doc;
+pub mod embed;
 pub mod index;
 pub mod markdown;
 pub mod note;
