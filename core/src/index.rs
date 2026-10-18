@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use serde::Serialize;
 
 use crate::chunk::{MAX_CHUNK_BYTES, chunk_section};
