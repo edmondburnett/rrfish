@@ -1,6 +1,7 @@
 pub mod chunk;
 pub mod doc;
 pub mod markdown;
+pub mod note;
 pub mod org;
 pub mod section;
 pub mod walk;
