@@ -6,6 +6,16 @@ pub enum Format {
     Org,
 }
 
+impl Format {
+    /// Short name stored in the index: `"md"` or `"org"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Format::Md => "md",
+            Format::Org => "org",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NoteFile {
     pub path: PathBuf,
