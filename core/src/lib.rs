@@ -6,6 +6,7 @@ pub mod markdown;
 pub mod note;
 pub mod opensearch;
 pub mod org;
+pub mod rrf;
 pub mod search;
 pub mod section;
 pub mod walk;
