@@ -18,6 +18,57 @@ pub struct BulkResponse {
     pub errors: bool,
 }
 
+/// One search result.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Hit {
+    pub id: String,
+    pub path: String,
+    pub line: u32,
+    pub heading_path: Vec<String>,
+    pub score: f32,
+}
+
+#[derive(Deserialize)]
+struct SearchResponse {
+    hits: Hits,
+}
+
+#[derive(Deserialize)]
+struct Hits {
+    hits: Vec<RawHit>,
+}
+
+#[derive(Deserialize)]
+struct RawHit {
+    #[serde(rename = "_id")]
+    id: String,
+    #[serde(rename = "_score")]
+    score: f32,
+    #[serde(rename = "_source")]
+    source: HitSource,
+}
+
+#[derive(Deserialize)]
+struct HitSource {
+    path: String,
+    line: u32,
+    heading_path: Vec<String>,
+}
+
+fn into_hits(response: SearchResponse) -> Vec<Hit> {
+    let mut hits: Vec<Hit> = Vec::new();
+    for raw in response.hits.hits {
+        hits.push(Hit {
+            id: raw.id,
+            path: raw.source.path,
+            line: raw.source.line,
+            heading_path: raw.source.heading_path,
+            score: raw.score,
+        });
+    }
+    hits
+}
+
 /// A document as stored: every `IndexDoc` field, plus its embedding.
 #[derive(Serialize)]
 struct StoredDoc<'a> {
@@ -70,6 +121,20 @@ impl OpenSearch {
             .error_for_status()?;
         Ok(())
     }
+
+    /// Run a search request body and return the hits in ranked order.
+    pub async fn search(&self, body: &serde_json::Value) -> reqwest::Result<Vec<Hit>> {
+        let response: SearchResponse = self
+            .client
+            .post(format!("{}/_search", self.index_url))
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(into_hits(response))
+    }
 }
 
 /// NDJSON for `_bulk`: an action line, then the document line, for each doc.
@@ -119,5 +184,19 @@ mod tests {
     fn mapping_is_valid_json_with_the_vector_field() {
         let mapping: serde_json::Value = serde_json::from_str(MAPPING).unwrap();
         assert_eq!(mapping["mappings"]["properties"]["embedding"]["dimension"], 1024);
+    }
+
+    #[test]
+    fn search_response_becomes_hits_in_order() {
+        let json = r#"{"took": 3, "hits": {"total": {"value": 2}, "hits": [
+        {"_id": "a.md#3", "_score": 5.5, "_source": {"path": "a.md", "line": 28, "heading_path": ["A", "B"]}},
+        {"_id": "b.md#0", "_score": 1.0, "_source": {"path": "b.md", "line": 1, "heading_path": []}}
+    ]}}"#;
+        let hits = into_hits(serde_json::from_str(json).unwrap());
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].id, "a.md#3");
+        assert_eq!(hits[0].line, 28);
+        assert_eq!(hits[0].heading_path, ["A", "B"]);
+        assert_eq!(hits[1].score, 1.0);
     }
 }

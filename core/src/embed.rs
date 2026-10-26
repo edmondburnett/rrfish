@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+/// What Qwen3-Embedding is told the query is for. Documents are embedded without it.
+const QUERY_INSTRUCTION: &str = "Given a search query, retrieve relevant passages from personal notes that answer it";
+
+/// Wrap a search query in the instruction format Qwen3-Embedding expects for queries.
+pub fn query_text(query: &str) -> String {
+    format!("Instruct: {QUERY_INSTRUCTION}\nQuery: {query}")
+}
+
 /// Client for an OpenAI-compatible `/v1/embeddings` endpoint (llama-server).
 pub struct Embedder {
     client: reqwest::Client,
