@@ -45,13 +45,18 @@ pub fn index_docs(file: &NoteFile, note: &Note) -> Vec<IndexDoc> {
 
 /// The text sent to the embedding model: title and heading path as context, then the chunk.
 pub fn embed_text(doc: &IndexDoc) -> String {
-    let mut context = vec![doc.title.as_str()];
-    for heading in &doc.heading_path {
-        if heading != doc.title.as_str() {
+    with_context(&doc.title, &doc.heading_path, &doc.text)
+}
+
+/// `"Title > Heading > Sub\n\ntext"`, skipping a heading that just repeats the title.
+pub fn with_context(title: &str, heading_path: &[String], text: &str) -> String {
+    let mut context = vec![title];
+    for heading in heading_path {
+        if heading != title {
             context.push(heading);
         }
     }
-    format!("{}\n\n{}", context.join(" > "), doc.text)
+    format!("{}\n\n{}", context.join(" > "), text)
 }
 
 #[cfg(test)]

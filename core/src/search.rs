@@ -4,7 +4,7 @@ use crate::embed::{Embedder, query_text};
 use crate::opensearch::{Hit, OpenSearch};
 
 /// Fields returned with each hit; the embedding is left out on purpose.
-const SOURCE_FIELDS: [&str; 3] = ["path", "line", "heading_path"];
+const SOURCE_FIELDS: [&str; 5] = ["path", "line", "title", "heading_path", "text"];
 
 /// Keyword search: BM25 over title (boosted), heading path and text.
 pub async fn bm25(opensearch: &OpenSearch, query: &str, size: usize) -> reqwest::Result<Vec<Hit>> {
@@ -59,6 +59,9 @@ mod tests {
         let body = knn_query(&[0.5, 0.25], 5);
         assert_eq!(body["query"]["knn"]["embedding"]["k"], 5);
         assert_eq!(body["query"]["knn"]["embedding"]["vector"], json!([0.5, 0.25]));
-        assert_eq!(body["_source"], json!(["path", "line", "heading_path"]));
+        assert_eq!(
+            body["_source"],
+            json!(["path", "line", "title", "heading_path", "text"])
+        );
     }
 }

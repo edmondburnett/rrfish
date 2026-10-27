@@ -26,6 +26,8 @@ pub struct Hit {
     pub line: u32,
     pub heading_path: Vec<String>,
     pub score: f32,
+    pub title: String,
+    pub text: String,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +55,8 @@ struct HitSource {
     path: String,
     line: u32,
     heading_path: Vec<String>,
+    title: String,
+    text: String,
 }
 
 fn into_hits(response: SearchResponse) -> Vec<Hit> {
@@ -64,6 +68,8 @@ fn into_hits(response: SearchResponse) -> Vec<Hit> {
             line: raw.source.line,
             heading_path: raw.source.heading_path,
             score: raw.score,
+            title: raw.source.title,
+            text: raw.source.text,
         });
     }
     hits
@@ -189,8 +195,8 @@ mod tests {
     #[test]
     fn search_response_becomes_hits_in_order() {
         let json = r#"{"took": 3, "hits": {"total": {"value": 2}, "hits": [
-        {"_id": "a.md#3", "_score": 5.5, "_source": {"path": "a.md", "line": 28, "heading_path": ["A", "B"]}},
-        {"_id": "b.md#0", "_score": 1.0, "_source": {"path": "b.md", "line": 1, "heading_path": []}}
+        {"_id": "a.md#3", "_score": 5.5, "_source": {"path": "a.md", "line": 28, "heading_path": ["A", "B"], "title": "A", "text": "body a"}},
+        {"_id": "b.md#0", "_score": 1.0, "_source": {"path": "b.md", "line": 1, "heading_path": [], "title": "B", "text": "body b"}}
     ]}}"#;
         let hits = into_hits(serde_json::from_str(json).unwrap());
         assert_eq!(hits.len(), 2);

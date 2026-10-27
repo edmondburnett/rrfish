@@ -80,6 +80,8 @@ mod tests {
             line: 1,
             heading_path: vec![],
             score: 0.0,
+            title: String::new(),
+            text: String::new(),
         }
     }
 
